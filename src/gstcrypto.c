@@ -41,16 +41,15 @@
  * Boston, MA 02110-1335, USA.
  */
 
-
 /**
- * SECTION:element-crypto
+ * SECTION:gst-crypto
  *
- * FIXME:Describe crypto here.
+ * FIXME:Describe gst-crypto here.
  *
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch -v -m fakesrc ! crypto ! fakesink silent=TRUE
+ * gst-launch -v -m fakesrc ! crypto ! fakesink mode=enc cypher=aes-128-cbc key=cabecabecabecabe
  * ]|
  * </refsect2>
  */
@@ -60,8 +59,12 @@
 #endif
 
 #include <gst/gst.h>
+#include <gst/base/gstbasetransform.h>
+#include <gst/controller/gstcontroller.h>
 
 #include "gstcrypto.h"
+
+#include <openssl/evp.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_crypto_debug);
 #define GST_CAT_DEFAULT gst_crypto_debug
@@ -76,53 +79,67 @@ enum
 enum
 {
   PROP_0,
-  PROP_SILENT
+  PROP_MODE,
+  PROP_CIPHER,
+  PROP_KEY,
 };
 
 /* the capabilities of the inputs and outputs.
  *
- * describe the real formats here.
  */
-static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
-    GST_PAD_SINK,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("ANY")
-    );
+static GstStaticPadTemplate sink_template =
+GST_STATIC_PAD_TEMPLATE (
+  "sink",
+  GST_PAD_SINK,
+  GST_PAD_ALWAYS,
+  GST_STATIC_CAPS ("ANY")
+);
 
-static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
-    GST_PAD_SRC,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("ANY")
-    );
+static GstStaticPadTemplate src_template =
+GST_STATIC_PAD_TEMPLATE (
+  "src",
+  GST_PAD_SRC,
+  GST_PAD_ALWAYS,
+  GST_STATIC_CAPS ("ANY")
+);
 
-GST_BOILERPLATE (GstCrypto, gst_crypto, GstElement,
-    GST_TYPE_ELEMENT);
+/* debug category for fltering log messages
+ *
+ * FIXME:exchange the string 'Template crypto' with your description
+ */
+#define DEBUG_INIT(bla) \
+  GST_DEBUG_CATEGORY_INIT (gst_crypto_debug, "crypto", 0, "Template crypto");
+
+GST_BOILERPLATE_FULL (GstCrypto, gst_crypto, GstBaseTransform,
+    GST_TYPE_BASE_TRANSFORM, DEBUG_INIT);
 
 static void gst_crypto_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_crypto_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
-static gboolean gst_crypto_set_caps (GstPad * pad, GstCaps * caps);
-static GstFlowReturn gst_crypto_chain (GstPad * pad, GstBuffer * buf);
+static GstFlowReturn gst_crypto_transform_ip (GstBaseTransform * base,
+    GstBuffer * outbuf);
+
+static void gst_crypto_finalize (GObject *object);
 
 /* GObject vmethod implementations */
 
 static void
-gst_crypto_base_init (gpointer gclass)
+gst_crypto_base_init (gpointer klass)
 {
-  GstElementClass *element_class = GST_ELEMENT_CLASS (gclass);
+  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
 
-  gst_element_class_set_details_simple(element_class,
-    "RidgeRun encryption/decryption plugin",
-    "Generic",
-    "A plugin that encrypts/decrypts stream data",
-    "Carsten Behling <carsten.behling@ridgerun.com>");
+  gst_element_class_set_details_simple (element_class,
+    "Crypto",
+    "Generic/Filter",
+    "FIXME:Generic Template Filter",
+    "Carsten Behling <<user@hostname.org>>");
 
   gst_element_class_add_pad_template (element_class,
-      gst_static_pad_template_get (&src_factory));
+      gst_static_pad_template_get (&src_template));
   gst_element_class_add_pad_template (element_class,
-      gst_static_pad_template_get (&sink_factory));
+      gst_static_pad_template_get (&sink_template));
 }
 
 /* initialize the crypto's class */
@@ -130,17 +147,28 @@ static void
 gst_crypto_class_init (GstCryptoClass * klass)
 {
   GObjectClass *gobject_class;
-  GstElementClass *gstelement_class;
 
   gobject_class = (GObjectClass *) klass;
-  gstelement_class = (GstElementClass *) klass;
-
   gobject_class->set_property = gst_crypto_set_property;
   gobject_class->get_property = gst_crypto_get_property;
 
-  g_object_class_install_property (gobject_class, PROP_SILENT,
-      g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
-          FALSE, G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_MODE,
+    g_param_spec_string ("mode", "Mode",
+          "'enc' for encryption, 'dec' for decryption", "enc",
+          G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_CIPHER,
+    g_param_spec_string ("cipher", "Cipher",
+          "cypher string in openssl format, currently aes-128-cbc only", "aes-128-cbc",
+          G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_KEY,
+    g_param_spec_string ("key", "Key",
+          "crypto key as hex string", "cabecabecabecabe",
+          G_PARAM_READWRITE));
+
+  gobject_class->finalize = gst_crypto_finalize;
+
+  GST_BASE_TRANSFORM_CLASS (klass)->transform_ip =
+      GST_DEBUG_FUNCPTR (gst_crypto_transform_ip);
 }
 
 /* initialize the new element
@@ -149,24 +177,14 @@ gst_crypto_class_init (GstCryptoClass * klass)
  * initialize instance structure
  */
 static void
-gst_crypto_init (GstCrypto * filter,
-    GstCryptoClass * gclass)
+gst_crypto_init (GstCrypto *filter, GstCryptoClass * klass)
 {
-  filter->sinkpad = gst_pad_new_from_static_template (&sink_factory, "sink");
-  gst_pad_set_setcaps_function (filter->sinkpad,
-                                GST_DEBUG_FUNCPTR(gst_crypto_set_caps));
-  gst_pad_set_getcaps_function (filter->sinkpad,
-                                GST_DEBUG_FUNCPTR(gst_pad_proxy_getcaps));
-  gst_pad_set_chain_function (filter->sinkpad,
-                              GST_DEBUG_FUNCPTR(gst_crypto_chain));
-
-  filter->srcpad = gst_pad_new_from_static_template (&src_factory, "src");
-  gst_pad_set_getcaps_function (filter->srcpad,
-                                GST_DEBUG_FUNCPTR(gst_pad_proxy_getcaps));
-
-  gst_element_add_pad (GST_ELEMENT (filter), filter->sinkpad);
-  gst_element_add_pad (GST_ELEMENT (filter), filter->srcpad);
-  filter->silent = FALSE;
+  filter->mode = g_malloc (64);
+  g_stpcpy (filter->mode, "enc");
+  filter->cipher = g_malloc (64);
+  g_stpcpy (filter->cipher, "aes-128-cbc");
+  filter->key = g_malloc (64);  
+  g_stpcpy (filter->key, "cabecabecabecabe");
 }
 
 static void
@@ -176,8 +194,14 @@ gst_crypto_set_property (GObject * object, guint prop_id,
   GstCrypto *filter = GST_CRYPTO (object);
 
   switch (prop_id) {
-    case PROP_SILENT:
-      filter->silent = g_value_get_boolean (value);
+    case PROP_MODE:
+      filter->mode = g_value_dup_string (value);
+      break;
+    case PROP_CIPHER:
+      filter->cipher = g_value_dup_string (value);
+      break;
+    case PROP_KEY:
+      filter->key = g_value_dup_string (value);	 
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -192,8 +216,14 @@ gst_crypto_get_property (GObject * object, guint prop_id,
   GstCrypto *filter = GST_CRYPTO (object);
 
   switch (prop_id) {
-    case PROP_SILENT:
-      g_value_set_boolean (value, filter->silent);
+    case PROP_MODE:
+      g_value_set_string (value, filter->mode);
+      break;
+    case PROP_CIPHER:
+      g_value_set_string (value, filter->cipher);
+      break;
+    case PROP_KEY:
+	  g_value_set_string (value, filter->key);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -201,39 +231,43 @@ gst_crypto_get_property (GObject * object, guint prop_id,
   }
 }
 
-/* GstElement vmethod implementations */
+/* GstBaseTransform vmethod implementations */
 
-/* this function handles the link with other elements */
-static gboolean
-gst_crypto_set_caps (GstPad * pad, GstCaps * caps)
-{
-  GstCrypto *filter;
-  GstPad *otherpad;
-
-  filter = GST_CRYPTO (gst_pad_get_parent (pad));
-  otherpad = (pad == filter->srcpad) ? filter->sinkpad : filter->srcpad;
-  gst_object_unref (filter);
-
-  return gst_pad_set_caps (otherpad, caps);
-}
-
-/* chain function
- * this function does the actual processing
+/* this function does the actual processing
  */
 static GstFlowReturn
-gst_crypto_chain (GstPad * pad, GstBuffer * buf)
+gst_crypto_transform_ip (GstBaseTransform * base, GstBuffer * outbuf)
+{
+  GstCrypto *filter = GST_CRYPTO (base);
+
+  if (GST_CLOCK_TIME_IS_VALID (GST_BUFFER_TIMESTAMP (outbuf)))
+    gst_object_sync_values (G_OBJECT (filter), GST_BUFFER_TIMESTAMP (outbuf));
+
+    g_print ("I'm plugged, therefore I'm in.\n");
+  
+  /* FIXME: do something interesting here.  This simply copies the source
+   * to the destination. */
+
+  return GST_FLOW_OK;
+}
+
+/* Object destructor
+ */
+static void
+gst_crypto_finalize (GObject *object)
 {
   GstCrypto *filter;
 
-  filter = GST_CRYPTO (GST_OBJECT_PARENT (pad));
+  filter= GST_CRYPTO(object);
 
-  if (filter->silent == FALSE)
-    g_print ("I'm plugged, therefore I'm in.\n");
+  /* free up used heap */
+  g_free (filter->mode);
+  g_free (filter->cipher);
+  g_free (filter->key);
 
-  /* just push out the incoming buffer without touching it */
-  return gst_pad_push (filter->srcpad, buf);
+  /* Chain up to the parent class */
+  G_OBJECT_CLASS (parent_class)->finalize;
 }
-
 
 /* entry point to initialize the plug-in
  * initialize the plug-in itself
@@ -242,12 +276,8 @@ gst_crypto_chain (GstPad * pad, GstBuffer * buf)
 static gboolean
 crypto_init (GstPlugin * crypto)
 {
-  /* debug category for fltering log messages
-   *
-   * exchange the string 'Template crypto' with your description
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_crypto_debug, "gst-crypto",
-      0, "RidgeRun encryption/decryption plugin");
+  /* initialize gst controller library */
+  gst_controller_init(NULL, NULL);
 
   return gst_element_register (crypto, "gst-crypto", GST_RANK_NONE,
       GST_TYPE_CRYPTO);
@@ -261,10 +291,8 @@ crypto_init (GstPlugin * crypto)
 #ifndef PACKAGE
 #define PACKAGE "gst-crypto"
 #endif
-
 /* gstreamer looks for this structure to register cryptos
  *
- * exchange the string 'Template crypto' with your crypto description
  */
 GST_PLUGIN_DEFINE (
     GST_VERSION_MAJOR,

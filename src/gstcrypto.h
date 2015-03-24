@@ -1,4 +1,4 @@
-/*
+/* 
  * GStCrypto
  * Copyright, LCC (C) 2015 RidgeRun, LCC <carsten.behling@ridgerun.com>
  * 
@@ -40,15 +40,15 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1335, USA.
  */
-
+ 
 #ifndef __GST_CRYPTO_H__
 #define __GST_CRYPTO_H__
 
 #include <gst/gst.h>
+#include <gst/base/gstbasetransform.h>
 
 G_BEGIN_DECLS
 
-/* #defines don't like whitespacey bits */
 #define GST_TYPE_CRYPTO \
   (gst_crypto_get_type())
 #define GST_CRYPTO(obj) \
@@ -63,18 +63,19 @@ G_BEGIN_DECLS
 typedef struct _GstCrypto      GstCrypto;
 typedef struct _GstCryptoClass GstCryptoClass;
 
-struct _GstCrypto
-{
-  GstElement element;
+struct _GstCrypto {
+  GstBaseTransform element;
 
   GstPad *sinkpad, *srcpad;
 
-  gboolean silent;
+  /* Properties */
+  gchar *mode;
+  gchar *cipher;
+  gchar *key;
 };
 
-struct _GstCryptoClass 
-{
-  GstElementClass parent_class;
+struct _GstCryptoClass {
+  GstBaseTransformClass parent_class;
 };
 
 GType gst_crypto_get_type (void);
