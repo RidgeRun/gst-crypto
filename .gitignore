@@ -1,0 +1,23 @@
+# .gitignore file for RidgeRun gst-crypto
+*~
+*.bak
+*.o
+configure
+Makefile.in
+Makefile
+compile
+aclocal.m4
+config.h.in
+config.h
+config.guess
+config.log
+config.status
+config.sub
+depcomp
+install.sh
+install-sh
+libtool
+ltmain.sh
+missing
+stamp-h1
+

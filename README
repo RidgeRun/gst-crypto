@@ -1,0 +1,2 @@
+gst-crypto is a GStreamer plugin that ecrypts/decrypts data streams
+on the fly. It is build directly on top of OpenSSL.
