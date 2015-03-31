@@ -47,6 +47,10 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
 
+#include <openssl/conf.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
+
 G_BEGIN_DECLS
 
 #define GST_TYPE_CRYPTO \
@@ -71,7 +75,20 @@ struct _GstCrypto {
   /* Properties */
   gchar *mode;
   gchar *cipher;
-  gchar *key;
+  guchar *key;
+  gchar *pass;
+  guchar *iv;
+  gboolean is_encrypting;
+  gboolean use_pass;
+
+  /* Element variables */
+  const EVP_CIPHER *evp_cipher;
+  const EVP_MD *evp_md;
+  const unsigned char *salt;
+  guchar *plaintext;
+  gint plaintext_len;
+  guchar *ciphertext;
+  gint ciphertext_len;
 };
 
 struct _GstCryptoClass {
