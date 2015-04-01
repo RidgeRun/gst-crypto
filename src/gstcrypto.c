@@ -452,6 +452,14 @@ gst_crypto_run(GstCrypto *filter)
       goto crypto_run_out;
     }
     filter->ciphertext_len = len;
+
+    /* CBC means the last block is the new iv */
+    /* FIXME: Can't libssl handle this transparently? */
+    if(len >= filter->plaintext_len) {
+      memcpy(filter->iv, filter->ciphertext + filter->ciphertext_len - 16, 16);
+      goto crypto_run_out;
+    }
+
     if(1 != EVP_EncryptFinal_ex(ctx, filter->ciphertext + len, &len)) {
       GST_ERROR ("Could not finalize openssl encryption");
       ret = GST_FLOW_ERROR;
@@ -473,6 +481,14 @@ gst_crypto_run(GstCrypto *filter)
       goto crypto_run_out;
     }
     filter->plaintext_len = len;
+
+    /* CBC means the last block is the new iv */
+    if(len == filter->ciphertext_len - 16) {
+      memcpy(filter->iv, filter->ciphertext + len, 16);
+      filter->plaintext_len += 16;
+      goto crypto_run_out;
+    }
+
     if(1 != EVP_DecryptFinal_ex(ctx, filter->plaintext + len, &len)) {
       GST_ERROR ("Could not finalize openssl decryption");
       ret = GST_FLOW_ERROR;
