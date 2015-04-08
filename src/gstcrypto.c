@@ -601,7 +601,7 @@ GST_PLUGIN_DEFINE (
     "RidgeRun encryption/decryption plugin",
     crypto_init,
     VERSION,
-    "GPL",
+    "LGPL",
     PACKAGE,
     "https://github.com/RidgeRun/gst-crypto"
 )
