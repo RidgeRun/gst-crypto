@@ -42,15 +42,15 @@
  */
 
 /**
- * SECTION:gst-crypto
+ * SECTION:crypto
  *
- * FIXME:Describe gst-crypto here.
+ * FIXME:Describe crypto here.
  *
  * <refsect2>
  * <title>Example launch line</title>
  * |[
  * echo "This is a crypto test ... " > plain.txt && gst-launch  filesrc \
- *     location=plain.txt ! gst-crypto mode=enc ! gst-crypto mode=dec ! \
+ *     location=plain.txt ! crypto mode=enc ! gst-crypto mode=dec ! \
  *     filesink location=dec.txt && cat dec.txt
  *
  * ]|
@@ -579,7 +579,7 @@ crypto_init (GstPlugin * crypto)
   /* initialize gst controller library */
   gst_controller_init(NULL, NULL);
 
-  return gst_element_register (crypto, "gst-crypto", GST_RANK_NONE,
+  return gst_element_register (crypto, "crypto", GST_RANK_NONE,
       GST_TYPE_CRYPTO);
 }
 
@@ -602,6 +602,6 @@ GST_PLUGIN_DEFINE (
     crypto_init,
     VERSION,
     "LGPL",
-    PACKAGE,
+    "crypto",
     "https://github.com/RidgeRun/gst-crypto"
 )
