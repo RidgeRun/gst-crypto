@@ -1,0 +1,24 @@
+2015-04-14  Carsten Behling  <carsten.behling@ridgerun.com>
+
+	* AUTHORS:
+	  Initial version.
+	* autogen.sh:
+	  Initial version.
+	* ChangeLog:
+	  Initial version.
+	* configure.ac:
+	  Initial version.
+	* COPYING:
+	  Initial version.
+	* Makefile.am:
+	  Initial version.
+	* NEWS:
+	  Initial version.
+	* README:
+	  Initial version.
+	* src/gstcrypto.c:
+	  Initial version.
+	* src/gstcrypto.h:
+	  Initial version.
+	* src/Makefile.am:
+	  Initial version.
