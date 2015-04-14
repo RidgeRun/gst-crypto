@@ -42,15 +42,15 @@
  */
 
 /**
- * SECTION:gst-crypto
+ * SECTION:crypto
  *
- * FIXME:Describe gst-crypto here.
+ * FIXME:Describe crypto here.
  *
  * <refsect2>
  * <title>Example launch line</title>
  * |[
  * echo "This is a crypto test ... " > plain.txt && gst-launch  filesrc \
- *     location=plain.txt ! gst-crypto mode=enc ! gst-crypto mode=dec ! \
+ *     location=plain.txt ! crypto mode=enc ! crypto mode=dec ! \
  *     filesink location=dec.txt && cat dec.txt
  *
  * ]|
