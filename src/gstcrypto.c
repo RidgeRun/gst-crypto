@@ -120,10 +120,9 @@ static void gst_crypto_get_property (GObject * object, guint prop_id,
 
 static GstFlowReturn gst_crypto_transform (GstBaseTransform * base,
     GstBuffer * inbuf, GstBuffer * outbuf);
-/* We have a bigger output buffer than input buffer and have to report that */
-static gboolean gst_crypto_transform_size (GstBaseTransform * base,
-    GstPadDirection direction, GstCaps * caps, gsize size,
-    GstCaps * othercaps, gsize * othersize);
+/* We have a bigger output buffer than input buffer and have allocate
+   that here ... this is somewhat different from 0.10, where we use
+   transform_size(...) ... */
 static GstFlowReturn gst_crypto_prepare_output_buffer (GstBaseTransform * base,
     GstBuffer * inbuf, GstBuffer ** outbuf);
 
@@ -195,8 +194,6 @@ gst_crypto_class_init (GstCryptoClass * klass)
 
   GST_BASE_TRANSFORM_CLASS (klass)->transform =
       GST_DEBUG_FUNCPTR (gst_crypto_transform);
-  GST_BASE_TRANSFORM_CLASS (klass)->transform_size =
-      GST_DEBUG_FUNCPTR (gst_crypto_transform_size);
   GST_BASE_TRANSFORM_CLASS (klass)->prepare_output_buffer =
       GST_DEBUG_FUNCPTR (gst_crypto_prepare_output_buffer);
   GST_BASE_TRANSFORM_CLASS (klass)->start =
@@ -337,18 +334,18 @@ gst_crypto_transform (GstBaseTransform * base,
   
   if (filter->is_encrypting) {
     filter->plaintext = inmap.data;
-    filter->plaintext_len = inmap.size;
+    filter->plaintext_len = gst_buffer_get_size(inbuf);
     filter->ciphertext = outmap.data;
   } else {
     filter->plaintext = outmap.data;
     filter->ciphertext = inmap.data;
-    filter->ciphertext_len = inmap.size;
+    filter->ciphertext_len = gst_buffer_get_size(inbuf);
   }
   ret = gst_crypto_run(filter);
   if (filter->is_encrypting) {
-    outmap.size = filter->ciphertext_len;
+    gst_buffer_set_size (outbuf, filter->ciphertext_len);
   } else {
-    outmap.size = filter->plaintext_len;
+    gst_buffer_set_size (outbuf, filter->plaintext_len);
   }
   GST_LOG ("Plaintext len: %d, Ciphertext len: %d", filter->plaintext_len,
       filter->ciphertext_len);
@@ -360,25 +357,6 @@ gst_crypto_transform (GstBaseTransform * base,
   return ret;
 }
 
-static gboolean
-gst_crypto_transform_size (GstBaseTransform * base,
-    GstPadDirection direction, GstCaps * caps, gsize size,
-    GstCaps * othercaps, gsize * othersize)
-{
-  GstCrypto *filter = GST_CRYPTO (base);
-  gboolean ret = TRUE;
-
-  GST_LOG ("Transforming size");
-
-  /* Encrypted text may be bigger */
-  if(filter->is_encrypting)
-  	*othersize = size += EVP_MAX_BLOCK_LENGTH;
-  else
-  	*othersize = size;
-
-  return ret;
-}
-
 static GstFlowReturn
 gst_crypto_prepare_output_buffer (GstBaseTransform * base,
     GstBuffer * inbuf, GstBuffer ** outbuf)
@@ -387,8 +365,13 @@ gst_crypto_prepare_output_buffer (GstBaseTransform * base,
   GST_LOG_OBJECT (filter, "Allocating output buffer size: %d",
       (int)gst_buffer_get_size (inbuf));
 
-  *outbuf = gst_buffer_new_allocate (NULL, gst_buffer_get_size (inbuf), NULL);
-  //GST_BUFFER_COPY_METADATA;
+  if(filter->is_encrypting)
+    *outbuf = gst_buffer_new_allocate (NULL, gst_buffer_get_size (inbuf)
+        + EVP_MAX_BLOCK_LENGTH, NULL);
+  else
+    *outbuf = gst_buffer_new_allocate (NULL, gst_buffer_get_size (inbuf), NULL);
+
+  *outbuf = gst_buffer_make_writable (*outbuf);
 
   return GST_FLOW_OK;
 }
