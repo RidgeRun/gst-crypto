@@ -522,20 +522,37 @@ static gboolean
 gst_crypto_hexstring2number(const gchar *in, gchar *out)
 {
   GST_LOG ("Coverting hex string to number");
+  gchar byte_val;
   if(!in || !out)
     return FALSE;
 
   while(*in != 0) {
+	/* Compute fist half-byte */
     if(*in >= 'A' && *in <= 'F') {
-      *out = *in - 55;
+      byte_val = (*in - 55)<<4;
 	} else if(*in >= 'a' && *in <= 'f') {
-      *out = *in - 87;
+      byte_val = (*in - 87)<<4;
 	} else if(*in >= '0' && *in <= '9') {
-      *out = *in - 48;
+      byte_val = (*in - 48)<<4;
     } else {
       return FALSE;
     }
-    GST_LOG ("ch: %c, hex: 0x%02x", *in, *out);
+    in++;
+    if(*in == 0) {
+		break;
+	}
+    /* Compute second half-byte */
+    if(*in >= 'A' && *in <= 'F') {
+      *out = (*in - 55) + byte_val;
+	} else if(*in >= 'a' && *in <= 'f') {
+      *out = (*in - 87) + byte_val;
+	} else if(*in >= '0' && *in <= '9') {
+      *out = (*in - 48) + byte_val;
+    } else {
+      return FALSE;
+    }
+
+    GST_LOG ("ch: %c%c, hex: 0x%x", *(in-1),*in, *out);
     in++; out++;
     if(!in || !out)
       return FALSE;
