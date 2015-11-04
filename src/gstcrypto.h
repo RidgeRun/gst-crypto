@@ -80,6 +80,7 @@ struct _GstCrypto {
   guchar *iv;
   gboolean is_encrypting;
   gboolean use_pass;
+  gboolean use_salt;
 
   /* Element variables */
   const EVP_CIPHER *evp_cipher;

@@ -73,6 +73,9 @@ GST_DEBUG_CATEGORY_STATIC (gst_crypto_debug);
 #define DEFAULT_PASS "RidgeRun"
 #define DEFAULT_KEY "1f9423681beb9a79215820f6bda73d0f"
 #define DEFAULT_IV "e9aa8e834d8d70b7e0d254ff670dd718"
+#define SALT_HEADER_ID "Salted__"
+#define SALT_VALUE_SIZE 8
+#define SALT_HEADER_ID_SIZE (sizeof(SALT_HEADER_ID) - 1)
 
 /* Filter signals and args */
 enum
@@ -230,6 +233,7 @@ gst_crypto_init (GstCrypto *filter, GstCryptoClass * klass)
   filter->key = g_malloc (64);  
   filter->iv = g_malloc (64);
   filter->use_pass = TRUE;
+  filter->use_salt = FALSE;
   GST_LOG ("Plugin initialization successfull");
 }
 
@@ -342,6 +346,27 @@ gst_crypto_transform (GstBaseTransform * base,
     filter->ciphertext = GST_BUFFER_DATA (inbuf);
     filter->ciphertext_len = GST_BUFFER_SIZE (inbuf);
   }
+
+  /* Verify if header salt exist */
+  /* Salt should point to an 8 byte buffer or NULL if no salt is used. */
+  if (0 == strncmp((const char *)filter->ciphertext,SALT_HEADER_ID,SALT_HEADER_ID_SIZE)) {
+    filter->use_salt = TRUE;
+    filter->salt = filter->ciphertext + SALT_HEADER_ID_SIZE;
+  }
+  else {
+	filter->salt = NULL;
+	filter->use_salt = FALSE;
+  }
+
+  if(filter->use_pass)
+  {
+    if(!gst_crypto_pass2keyiv(filter)) {
+      GST_ERROR ("Openssl key and iv generation failed");
+      return FALSE;
+    }
+    filter->use_pass = FALSE;
+  }
+
   ret = gst_crypto_run(filter);
   if (filter->is_encrypting) {
     GST_BUFFER_SIZE (outbuf) = filter->ciphertext_len;
@@ -384,12 +409,6 @@ gst_crypto_start (GstBaseTransform * base)
     return FALSE;
   }
 
-  if(filter->use_pass)
-    if(!gst_crypto_pass2keyiv(filter)) {
-      GST_ERROR ("Openssl key and iv generation failed");
-      return FALSE;
-    }
-
   GST_LOG ("Start successfull");
   return TRUE;
 }
@@ -421,7 +440,6 @@ gst_crypto_openssl_init(GstCrypto *filter)
     GST_ERROR ("Could not get md5 digest by name from openssl");
     return FALSE;
   }
-  filter->salt = NULL;
   GST_LOG ("Initialization successfull");
   return TRUE;
 }
@@ -432,6 +450,7 @@ gst_crypto_run(GstCrypto *filter)
   GstFlowReturn ret = GST_FLOW_OK;
   EVP_CIPHER_CTX *ctx;
   int len;
+  guchar *ciphertext;
 
   GST_LOG ("Crypto running");
   if(!(ctx = EVP_CIPHER_CTX_new()))
@@ -474,7 +493,18 @@ gst_crypto_run(GstCrypto *filter)
       ret = GST_FLOW_ERROR;
       goto crypto_run_out;
     }
-    if(1 != EVP_DecryptUpdate(ctx, filter->plaintext, &len, filter->ciphertext,
+
+    if (TRUE == filter->use_salt) {
+		filter->ciphertext_len -= (SALT_HEADER_ID_SIZE + SALT_VALUE_SIZE);
+		/* Skip the salt id and value */
+		ciphertext = filter->ciphertext + (SALT_HEADER_ID_SIZE + SALT_VALUE_SIZE);
+		/* Only the first frame must be skipped */
+		filter->use_salt = FALSE;
+	} else {
+		ciphertext = filter->ciphertext;
+	}
+
+    if(1 != EVP_DecryptUpdate(ctx, filter->plaintext, &len, ciphertext,
         filter->ciphertext_len)) {
       GST_ERROR ("Could not update openssl decryption");
       ret = GST_FLOW_ERROR;
@@ -484,7 +514,7 @@ gst_crypto_run(GstCrypto *filter)
 
     /* CBC means the last block is the new iv */
     if(len == filter->ciphertext_len - 16) {
-      memcpy(filter->iv, filter->ciphertext + len, 16);
+      memcpy(filter->iv, ciphertext + len, 16);
       filter->plaintext_len += 16;
       goto crypto_run_out;
     }
@@ -506,8 +536,8 @@ crypto_run_out:
 static gboolean
 gst_crypto_pass2keyiv(GstCrypto *filter)
 {
-  GST_LOG ("Coverting pass to key/iv");
-  if(!EVP_BytesToKey(filter->evp_cipher, filter->evp_md, filter->salt,
+  GST_LOG ("Coverting pass (and salt) to key/iv");
+  if(!EVP_BytesToKey(filter->evp_cipher, filter->evp_md, filter->salt ,
       (guchar*)filter->pass, strlen(filter->pass), 1, (guchar*)filter->key,
       (guchar*)filter->iv)) {
     GST_ERROR ("Could not execute openssl key/iv conversion");
