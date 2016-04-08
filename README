@@ -1,2 +1,8 @@
-gst-crypto is a GStreamer plugin that ecrypts/decrypts data streams
-on the fly. It is build directly on top of OpenSSL.
+RidgeRun's gst-crypto plugin makes it easy to encrypt or decrypt content 
+passing through a GStreamer pipeline, it is build directly on top of OpenSSL.
+gst-crypto will take advantage of  any available crypto hardware accelerators. 
+gst-crypto is based on OpenSSL so any encryption technology supported by OpenSSL 
+can be supported by gst-crypto. Currently, only aes-128-cbc cipher is supported. 
+
+More information on how to use it on:
+ http://developer.ridgerun.com/wiki/index.php?title=RidgeRun_gst-crypto_GStreamer_Plugin
