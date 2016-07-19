@@ -518,26 +518,44 @@ gst_crypto_pass2keyiv (GstCrypto * filter)
 
 /* General helper functions */
 static gboolean
-gst_crypto_hexstring2number (GstCrypto * filter, const gchar * in, gchar * out)
+gst_crypto_hexstring2number(GstCrypto * filter, const gchar *in, gchar *out)
 {
+  gchar byte_val;
+
   GST_LOG_OBJECT (filter, "Coverting hex string to number");
-  if (!in || !out)
+
+  if(!in || !out)
     return FALSE;
 
-  while (*in != 0) {
-    if (*in >= 'A' && *in <= 'F') {
-      *out = *in - 55;
-    } else if (*in >= 'a' && *in <= 'f') {
-      *out = *in - 87;
-    } else if (*in >= '0' && *in <= '9') {
-      *out = *in - 48;
+  while(*in != 0) {
+    /* Compute fist half-byte */
+    if(*in >= 'A' && *in <= 'F') {
+      byte_val = (*in - 55)<<4;
+    } else if(*in >= 'a' && *in <= 'f') {
+      byte_val = (*in - 87)<<4;
+    } else if(*in >= '0' && *in <= '9') {
+      byte_val = (*in - 48)<<4;
     } else {
       return FALSE;
     }
-    GST_LOG_OBJECT (filter, "ch: %c, hex: 0x%02x", *in, *out);
     in++;
-    out++;
-    if (!in || !out)
+    if(*in == 0) {
+        break;
+    }
+    /* Compute second half-byte */
+    if(*in >= 'A' && *in <= 'F') {
+      *out = (*in - 55) + byte_val;
+    } else if(*in >= 'a' && *in <= 'f') {
+      *out = (*in - 87) + byte_val;
+    } else if(*in >= '0' && *in <= '9') {
+      *out = (*in - 48) + byte_val;
+    } else {
+      return FALSE;
+    }
+
+    GST_LOG_OBJECT (filter, "ch: %c%c, hex: 0x%x", *(in-1),*in, *out);
+    in++; out++;
+    if(!in || !out)
       return FALSE;
   }
   GST_LOG_OBJECT (filter, "Hex string conversion successfull");
