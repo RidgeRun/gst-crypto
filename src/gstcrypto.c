@@ -1,6 +1,7 @@
 /*
  * GStCrypto
  * Copyright, LCC (C) 2015 RidgeRun, LCC <carsten.behling@ridgerun.com>
+ * Copyright, LCC (C) 2016 RidgeRun, LCC <jose.jimenez@ridgerun.com>
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -77,7 +78,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_crypto_debug);
 /* Filter signals and args */
 enum
 {
-  /* FILL ME */
   LAST_SIGNAL
 };
 
@@ -94,21 +94,17 @@ enum
 /* the capabilities of the inputs and outputs.
  *
  */
-static GstStaticPadTemplate sink_template =
-GST_STATIC_PAD_TEMPLATE (
-  "sink",
-  GST_PAD_SINK,
-  GST_PAD_ALWAYS,
-  GST_STATIC_CAPS ("ANY")
-);
+static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
+    GST_PAD_SINK,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS ("ANY")
+    );
 
-static GstStaticPadTemplate src_template =
-GST_STATIC_PAD_TEMPLATE (
-  "src",
-  GST_PAD_SRC,
-  GST_PAD_ALWAYS,
-  GST_STATIC_CAPS ("ANY")
-);
+static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
+    GST_PAD_SRC,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS ("ANY")
+    );
 
 #define gst_crypto_parent_class parent_class
 G_DEFINE_TYPE (GstCrypto, gst_crypto, GST_TYPE_BASE_TRANSFORM);
@@ -129,15 +125,16 @@ static GstFlowReturn gst_crypto_prepare_output_buffer (GstBaseTransform * base,
 static gboolean gst_crypto_start (GstBaseTransform * base);
 static gboolean gst_crypto_stop (GstBaseTransform * base);
 
-static void gst_crypto_finalize (GObject *object);
+static void gst_crypto_finalize (GObject * object);
 
 /* crypto helper functions */
-static gboolean gst_crypto_openssl_init(GstCrypto *filter);
-static GstFlowReturn gst_crypto_run(GstCrypto *filter);
-static gboolean gst_crypto_pass2keyiv(GstCrypto *filter);
+static gboolean gst_crypto_openssl_init (GstCrypto * filter);
+static GstFlowReturn gst_crypto_run (GstCrypto * filter);
+static gboolean gst_crypto_pass2keyiv (GstCrypto * filter);
 
 /* general helper functions */
-static gboolean gst_crypto_hexstring2number(const gchar *in, gchar *out);
+static gboolean gst_crypto_hexstring2number (GstCrypto * filter,
+    const gchar * in, gchar * out);
 
 /* GObject vmethod implementations */
 
@@ -155,35 +152,34 @@ gst_crypto_class_init (GstCryptoClass * klass)
   gobject_class->get_property = gst_crypto_get_property;
 
   g_object_class_install_property (gobject_class, PROP_MODE,
-    g_param_spec_string ("mode", "Mode",
+      g_param_spec_string ("mode", "Mode",
           "'enc' for encryption, 'dec' for decryption", "enc",
           G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
   g_object_class_install_property (gobject_class, PROP_CIPHER,
-    g_param_spec_string ("cipher", "Cipher",
-          "cypher string in openssl format, currently aes-128-cbc only", "aes-128-cbc",
-          G_PARAM_READWRITE));
+      g_param_spec_string ("cipher", "Cipher",
+          "cypher string in openssl format, currently aes-128-cbc only",
+          "aes-128-cbc", G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_PASS,
-    g_param_spec_string ("pass", "Pass",
-          "crypto password", DEFAULT_PASS,
+      g_param_spec_string ("pass", "Pass", "crypto password", DEFAULT_PASS,
           G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
   /* The default hexkey is what openssl would generate from the default password
-     'RidgeRun'*/
+     'RidgeRun' */
   g_object_class_install_property (gobject_class, PROP_KEY,
-    g_param_spec_string ("key", "Key",
-          "crypto hexkey", (guchar*)DEFAULT_KEY,
+      g_param_spec_string ("key", "Key",
+          "crypto hexkey", (guchar *) DEFAULT_KEY,
           G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
   /* The default iv is what openssl would generate from the default password
-     'RidgeRun'*/
+     'RidgeRun' */
   g_object_class_install_property (gobject_class, PROP_IV,
-    g_param_spec_string ("iv", "Iv",
-          "crypto initialization vector", (guchar*)DEFAULT_IV,
+      g_param_spec_string ("iv", "Iv",
+          "crypto initialization vector", (guchar *) DEFAULT_IV,
           G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
 
   gst_element_class_set_details_simple (gstelement_class,
-    "Crypto",
-    "Generic/Filter",
-    "RidgeRun's crypto plugin that encrypts/decrypts data on the fly",
-    "Carsten Behling <carsten.behling@ridgerun.com>");
+      "Crypto",
+      "Generic/Filter",
+      "RidgeRun's crypto plugin that encrypts/decrypts data on the fly",
+      "Carsten Behling <carsten.behling@ridgerun.com>");
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_template));
@@ -198,34 +194,31 @@ gst_crypto_class_init (GstCryptoClass * klass)
       GST_DEBUG_FUNCPTR (gst_crypto_prepare_output_buffer);
   GST_BASE_TRANSFORM_CLASS (klass)->start =
       GST_DEBUG_FUNCPTR (gst_crypto_start);
-  GST_BASE_TRANSFORM_CLASS (klass)->stop =
-      GST_DEBUG_FUNCPTR (gst_crypto_stop);
+  GST_BASE_TRANSFORM_CLASS (klass)->stop = GST_DEBUG_FUNCPTR (gst_crypto_stop);
 
-  /* debug category for fltering log messages
-   *
-   * FIXME:exchange the string 'Template crypto' with your description
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_crypto_debug, "crypto", 0, "Template crypto");
+  /* debug category for fltering log messages */
+  GST_DEBUG_CATEGORY_INIT (gst_crypto_debug, "crypto", 0,
+      "crypto encrypt/decrypt element");
 }
 
 /* initialize the new element
  * initialize instance structure
  */
 static void
-gst_crypto_init (GstCrypto *filter)
+gst_crypto_init (GstCrypto * filter)
 {
-  GST_LOG ("Initializing plugin");
+  GST_INFO_OBJECT (filter, "Initializing plugin");
   filter->mode = g_malloc (64);
   g_stpcpy (filter->mode, "enc");
   filter->is_encrypting = TRUE;
   filter->cipher = g_malloc (64);
   g_stpcpy (filter->cipher, "aes-128-cbc");
-  filter->pass = g_malloc (64);  
+  filter->pass = g_malloc (64);
   g_stpcpy (filter->pass, DEFAULT_PASS);
-  filter->key = g_malloc (64);  
+  filter->key = g_malloc (64);
   filter->iv = g_malloc (64);
   filter->use_pass = TRUE;
-  GST_LOG ("Plugin initialization successfull");
+  GST_INFO_OBJECT (filter, "Plugin initialization successfull");
 }
 
 static void
@@ -234,48 +227,49 @@ gst_crypto_set_property (GObject * object, guint prop_id,
 {
   GstCrypto *filter = GST_CRYPTO (object);
 
-  GST_LOG ("Setting properties");
+  GST_DEBUG_OBJECT (filter, "Setting properties");
   switch (prop_id) {
     case PROP_MODE:
       filter->mode = g_value_dup_string (value);
-      if (!g_strcmp0(filter->mode, "enc"))
+      if (!g_strcmp0 (filter->mode, "enc"))
         filter->is_encrypting = TRUE;
-      else if(!g_strcmp0(filter->mode, "dec"))
+      else if (!g_strcmp0 (filter->mode, "dec"))
         filter->is_encrypting = FALSE;
       break;
     case PROP_CIPHER:
       filter->cipher = g_value_dup_string (value);
-      filter->evp_cipher = EVP_get_cipherbyname(filter->cipher);
+      filter->evp_cipher = EVP_get_cipherbyname (filter->cipher);
       break;
     case PROP_PASS:
       filter->pass = g_value_dup_string (value);
-	  filter->use_pass = TRUE;
+      filter->use_pass = TRUE;
       break;
     case PROP_KEY:
-      if(!gst_crypto_hexstring2number(g_value_dup_string (value),
-          (gchar*)filter->key)) {
+      if (!gst_crypto_hexstring2number (filter, g_value_dup_string (value),
+              (gchar *) filter->key)) {
         /* If hexkey is invalid, set to default */
-		gst_crypto_hexstring2number(DEFAULT_KEY, (gchar*)filter->key);
-	  }
-	  filter->use_pass = FALSE;
+        gst_crypto_hexstring2number (filter, DEFAULT_KEY,
+            (gchar *) filter->key);
+      }
+      filter->use_pass = FALSE;
       break;
     case PROP_IV:
-      if(!gst_crypto_hexstring2number(g_value_dup_string (value),
-          (gchar*)filter->iv)) {
+      if (!gst_crypto_hexstring2number (filter, g_value_dup_string (value),
+              (gchar *) filter->iv)) {
         /* If hexkey is invalid, set to default */
-		gst_crypto_hexstring2number(DEFAULT_IV, (gchar*)filter->iv);
-	  }
-	  filter->use_pass = FALSE;
+        gst_crypto_hexstring2number (filter, DEFAULT_IV, (gchar *) filter->iv);
+      }
+      filter->use_pass = FALSE;
       break;
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-  GST_LOG ("mode: %s", filter->mode);
-  GST_LOG ("cipher: %s", filter->cipher);
-  GST_LOG ("pass: %s", filter->pass);
-  GST_LOG ("Set properties succsessfully ");
+  GST_DEBUG_OBJECT (filter, "mode: %s", filter->mode);
+  GST_DEBUG_OBJECT (filter, "cipher: %s", filter->cipher);
+  GST_DEBUG_OBJECT (filter, "pass: %s", filter->pass);
+  GST_DEBUG_OBJECT (filter, "Set properties succsessfully ");
 }
 
 static void
@@ -284,7 +278,7 @@ gst_crypto_get_property (GObject * object, guint prop_id,
 {
   GstCrypto *filter = GST_CRYPTO (object);
 
-  GST_LOG ("Getting properties");
+  GST_DEBUG_OBJECT (filter, "Getting properties");
   switch (prop_id) {
     case PROP_MODE:
       g_value_set_string (value, filter->mode);
@@ -293,19 +287,19 @@ gst_crypto_get_property (GObject * object, guint prop_id,
       g_value_set_string (value, filter->cipher);
       break;
     case PROP_PASS:
-	  g_value_set_string (value, filter->pass);
+      g_value_set_string (value, filter->pass);
       break;
     case PROP_KEY:
-	  g_value_set_string (value, (gchar*)filter->key);
+      g_value_set_string (value, (gchar *) filter->key);
       break;
     case PROP_IV:
-	  g_value_set_string (value, (gchar*)filter->iv);
+      g_value_set_string (value, (gchar *) filter->iv);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-  GST_LOG ("Got properties succsessfully ");
+  GST_DEBUG_OBJECT (filter, "Got properties succsessfully ");
 }
 
 /* GstBaseTransform vmethod implementations */
@@ -318,7 +312,7 @@ gst_crypto_transform (GstBaseTransform * base,
 {
   GstCrypto *filter = GST_CRYPTO (base);
   GstFlowReturn ret;
-  GstMapInfo inmap, outmap; 
+  GstMapInfo inmap, outmap;
 
   gst_buffer_map (inbuf, &inmap, GST_MAP_READ);
   gst_buffer_map (outbuf, &outmap, GST_MAP_WRITE);
@@ -329,31 +323,32 @@ gst_crypto_transform (GstBaseTransform * base,
   if (!inmap.data || !outmap.data)
     return GST_FLOW_ERROR;
 
-  GST_LOG ("Transforming, input buffer size %d, output buffer size: %d\n",
-      (int)inmap.size, (int)outmap.size);
-  
+  GST_LOG_OBJECT (filter,
+      "Transforming, input buffer size %d, output buffer size: %d\n",
+      (int) inmap.size, (int) outmap.size);
+
   if (filter->is_encrypting) {
     filter->plaintext = inmap.data;
-    filter->plaintext_len = gst_buffer_get_size(inbuf);
+    filter->plaintext_len = gst_buffer_get_size (inbuf);
     filter->ciphertext = outmap.data;
   } else {
     filter->plaintext = outmap.data;
     filter->ciphertext = inmap.data;
-    filter->ciphertext_len = gst_buffer_get_size(inbuf);
+    filter->ciphertext_len = gst_buffer_get_size (inbuf);
   }
-  ret = gst_crypto_run(filter);
+  ret = gst_crypto_run (filter);
   if (filter->is_encrypting) {
     gst_buffer_set_size (outbuf, filter->ciphertext_len);
   } else {
     gst_buffer_set_size (outbuf, filter->plaintext_len);
   }
-  GST_LOG ("Plaintext len: %d, Ciphertext len: %d", filter->plaintext_len,
-      filter->ciphertext_len);
+  GST_LOG_OBJECT (filter, "Plaintext len: %d, Ciphertext len: %d",
+      filter->plaintext_len, filter->ciphertext_len);
 
   gst_buffer_unmap (inbuf, &inmap);
   gst_buffer_unmap (outbuf, &outmap);
 
-  GST_LOG ("Transformation successfull");
+  GST_LOG_OBJECT (filter, "Transformation successfull");
   return ret;
 }
 
@@ -363,9 +358,9 @@ gst_crypto_prepare_output_buffer (GstBaseTransform * base,
 {
   GstCrypto *filter = GST_CRYPTO (base);
   GST_LOG_OBJECT (filter, "Allocating output buffer size: %d",
-      (int)gst_buffer_get_size (inbuf));
+      (int) gst_buffer_get_size (inbuf));
 
-  if(filter->is_encrypting)
+  if (filter->is_encrypting)
     *outbuf = gst_buffer_new_allocate (NULL, gst_buffer_get_size (inbuf)
         + EVP_MAX_BLOCK_LENGTH, NULL);
   else
@@ -380,77 +375,78 @@ static gboolean
 gst_crypto_start (GstBaseTransform * base)
 {
   GstCrypto *filter = GST_CRYPTO (base);
-  GST_LOG ("Starting");
+  GST_INFO_OBJECT (filter, "Starting");
 
-  if(!gst_crypto_openssl_init(filter)) {
-    GST_ERROR ("Openssl initialization failed");
+  if (!gst_crypto_openssl_init (filter)) {
+    GST_ERROR_OBJECT (filter, "Openssl initialization failed");
     return FALSE;
   }
 
-  if(filter->use_pass)
-    if(!gst_crypto_pass2keyiv(filter)) {
-      GST_ERROR ("Openssl key and iv generation failed");
+  if (filter->use_pass)
+    if (!gst_crypto_pass2keyiv (filter)) {
+      GST_ERROR_OBJECT (filter, "Openssl key and iv generation failed");
       return FALSE;
     }
 
-  GST_LOG ("Start successfull");
+  GST_INFO_OBJECT (filter, "Start successfull");
   return TRUE;
 }
 
 static gboolean
 gst_crypto_stop (GstBaseTransform * base)
 {
-  GST_LOG ("Stopping");
-  GST_LOG ("Stop successfull");
+  GstCrypto *filter = GST_CRYPTO (base);
+  GST_INFO_OBJECT (filter, "Stopping");
+  GST_LOG_OBJECT (filter, "Stop successfull");
   return TRUE;
 }
 
 /* Crypto helper  functions */
 static gboolean
-gst_crypto_openssl_init(GstCrypto *filter)
+gst_crypto_openssl_init (GstCrypto * filter)
 {
-  GST_LOG ("Initializing");
+  GST_INFO_OBJECT (filter, "Initializing");
 
-  ERR_load_crypto_strings();
-  OpenSSL_add_all_algorithms();
-  OPENSSL_config(NULL);
-  filter->evp_cipher = EVP_get_cipherbyname(filter->cipher);
-  if(!filter->evp_cipher) {
-    GST_ERROR ("Could not get cipher by name from openssl");
+  ERR_load_crypto_strings ();
+  OpenSSL_add_all_algorithms ();
+  OPENSSL_config (NULL);
+  filter->evp_cipher = EVP_get_cipherbyname (filter->cipher);
+  if (!filter->evp_cipher) {
+    GST_ERROR_OBJECT (filter, "Could not get cipher by name from openssl");
     return FALSE;
   }
-  filter->evp_md = EVP_get_digestbyname("md5");
-  if(!filter->evp_md) {
-    GST_ERROR ("Could not get md5 digest by name from openssl");
+  filter->evp_md = EVP_get_digestbyname ("md5");
+  if (!filter->evp_md) {
+    GST_ERROR_OBJECT (filter, "Could not get md5 digest by name from openssl");
     return FALSE;
   }
   filter->salt = NULL;
-  GST_LOG ("Initialization successfull");
+  GST_LOG_OBJECT (filter, "Initialization successfull");
   return TRUE;
 }
 
 static GstFlowReturn
-gst_crypto_run(GstCrypto *filter)
+gst_crypto_run (GstCrypto * filter)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   EVP_CIPHER_CTX *ctx;
   int len;
 
-  GST_LOG ("Crypto running");
-  if(!(ctx = EVP_CIPHER_CTX_new()))
+  GST_LOG_OBJECT (filter, "Crypto running");
+  if (!(ctx = EVP_CIPHER_CTX_new ()))
     return GST_FLOW_ERROR;
 
   if (filter->is_encrypting) {
-    GST_LOG ("Encrypting");
-    if(1 != EVP_EncryptInit_ex(ctx, filter->evp_cipher, NULL, filter->key,
-        filter->iv)) {
-      GST_ERROR ("Could not initialize openssl encryption");
+    GST_LOG_OBJECT (filter, "Encrypting");
+    if (1 != EVP_EncryptInit_ex (ctx, filter->evp_cipher, NULL, filter->key,
+            filter->iv)) {
+      GST_ERROR_OBJECT (filter, "Could not initialize openssl encryption");
       ret = GST_FLOW_ERROR;
       goto crypto_run_out;
     }
-    if(1 != EVP_EncryptUpdate(ctx, filter->ciphertext, &len, filter->plaintext,
-        filter->plaintext_len)) {
-      GST_ERROR ("Could not update openssl encryption");
+    if (1 != EVP_EncryptUpdate (ctx, filter->ciphertext, &len,
+            filter->plaintext, filter->plaintext_len)) {
+      GST_ERROR_OBJECT (filter, "Could not update openssl encryption");
       ret = GST_FLOW_ERROR;
       goto crypto_run_out;
     }
@@ -458,92 +454,93 @@ gst_crypto_run(GstCrypto *filter)
 
     /* CBC means the last block is the new iv */
     /* FIXME: Can't libssl handle this transparently? */
-    if(len >= filter->plaintext_len) {
-      memcpy(filter->iv, filter->ciphertext + filter->ciphertext_len - 16, 16);
+    if (len >= filter->plaintext_len) {
+      memcpy (filter->iv, filter->ciphertext + filter->ciphertext_len - 16, 16);
       goto crypto_run_out;
     }
 
-    if(1 != EVP_EncryptFinal_ex(ctx, filter->ciphertext + len, &len)) {
-      GST_ERROR ("Could not finalize openssl encryption");
+    if (1 != EVP_EncryptFinal_ex (ctx, filter->ciphertext + len, &len)) {
+      GST_ERROR_OBJECT (filter, "Could not finalize openssl encryption");
       ret = GST_FLOW_ERROR;
       goto crypto_run_out;
     }
     filter->ciphertext_len += len;
   } else {
-    GST_LOG ("Decrypting");
-    if(1 != EVP_DecryptInit_ex(ctx, filter->evp_cipher, NULL, filter->key,
-        filter->iv)) {
-      GST_ERROR ("Could not initialize openssl decryption");
+    GST_LOG_OBJECT (filter, "Decrypting");
+    if (1 != EVP_DecryptInit_ex (ctx, filter->evp_cipher, NULL, filter->key,
+            filter->iv)) {
+      GST_ERROR_OBJECT (filter, "Could not initialize openssl decryption");
       ret = GST_FLOW_ERROR;
       goto crypto_run_out;
     }
-    if(1 != EVP_DecryptUpdate(ctx, filter->plaintext, &len, filter->ciphertext,
-        filter->ciphertext_len)) {
-      GST_ERROR ("Could not update openssl decryption");
+    if (1 != EVP_DecryptUpdate (ctx, filter->plaintext, &len,
+            filter->ciphertext, filter->ciphertext_len)) {
+      GST_ERROR_OBJECT (filter, "Could not update openssl decryption");
       ret = GST_FLOW_ERROR;
       goto crypto_run_out;
     }
     filter->plaintext_len = len;
 
     /* CBC means the last block is the new iv */
-    if(len == filter->ciphertext_len - 16) {
-      memcpy(filter->iv, filter->ciphertext + len, 16);
+    if (len == filter->ciphertext_len - 16) {
+      memcpy (filter->iv, filter->ciphertext + len, 16);
       filter->plaintext_len += 16;
       goto crypto_run_out;
     }
 
-    if(1 != EVP_DecryptFinal_ex(ctx, filter->plaintext + len, &len)) {
-      GST_ERROR ("Could not finalize openssl decryption");
+    if (1 != EVP_DecryptFinal_ex (ctx, filter->plaintext + len, &len)) {
+      GST_ERROR_OBJECT (filter, "Could not finalize openssl decryption");
       ret = GST_FLOW_ERROR;
       goto crypto_run_out;
     }
     filter->plaintext_len += len;
   }
-  GST_LOG ("Crypto run successfull");
+  GST_LOG_OBJECT (filter, "Crypto run successfull");
 
 crypto_run_out:
-  EVP_CIPHER_CTX_free(ctx);
+  EVP_CIPHER_CTX_free (ctx);
   return ret;
 }
 
 static gboolean
-gst_crypto_pass2keyiv(GstCrypto *filter)
+gst_crypto_pass2keyiv (GstCrypto * filter)
 {
-  GST_LOG ("Coverting pass to key/iv");
-  if(!EVP_BytesToKey(filter->evp_cipher, filter->evp_md, filter->salt,
-      (guchar*)filter->pass, strlen(filter->pass), 1, (guchar*)filter->key,
-      (guchar*)filter->iv)) {
-    GST_ERROR ("Could not execute openssl key/iv conversion");
+  GST_LOG_OBJECT (filter, "Coverting pass to key/iv");
+  if (!EVP_BytesToKey (filter->evp_cipher, filter->evp_md, filter->salt,
+          (guchar *) filter->pass, strlen (filter->pass), 1,
+          (guchar *) filter->key, (guchar *) filter->iv)) {
+    GST_ERROR_OBJECT (filter, "Could not execute openssl key/iv conversion");
     return FALSE;
   }
-  GST_LOG ("Key/iv conversion successfull");
+  GST_LOG_OBJECT (filter, "Key/iv conversion successfull");
   return TRUE;
 }
 
 /* General helper functions */
 static gboolean
-gst_crypto_hexstring2number(const gchar *in, gchar *out)
+gst_crypto_hexstring2number (GstCrypto * filter, const gchar * in, gchar * out)
 {
-  GST_LOG ("Coverting hex string to number");
-  if(!in || !out)
+  GST_LOG_OBJECT (filter, "Coverting hex string to number");
+  if (!in || !out)
     return FALSE;
 
-  while(*in != 0) {
-    if(*in >= 'A' && *in <= 'F') {
+  while (*in != 0) {
+    if (*in >= 'A' && *in <= 'F') {
       *out = *in - 55;
-	} else if(*in >= 'a' && *in <= 'f') {
+    } else if (*in >= 'a' && *in <= 'f') {
       *out = *in - 87;
-	} else if(*in >= '0' && *in <= '9') {
+    } else if (*in >= '0' && *in <= '9') {
       *out = *in - 48;
     } else {
       return FALSE;
     }
-    GST_LOG ("ch: %c, hex: 0x%02x", *in, *out);
-    in++; out++;
-    if(!in || !out)
+    GST_LOG_OBJECT (filter, "ch: %c, hex: 0x%02x", *in, *out);
+    in++;
+    out++;
+    if (!in || !out)
       return FALSE;
   }
-  GST_LOG ("Hex string conversion successfull");
+  GST_LOG_OBJECT (filter, "Hex string conversion successfull");
 
   return TRUE;
 }
@@ -551,26 +548,27 @@ gst_crypto_hexstring2number(const gchar *in, gchar *out)
 /* Object destructor
  */
 static void
-gst_crypto_finalize (GObject *object)
+gst_crypto_finalize (GObject * object)
 {
   GstCrypto *filter;
 
-  GST_LOG ("Finalizing");
-  filter= GST_CRYPTO(object);
+  GST_INFO_OBJECT (filter, "Finalizing");
+  filter = GST_CRYPTO (object);
 
   /* free up used heap */
-  if(filter->mode)
+  if (filter->mode)
     g_free (filter->mode);
-  if(filter->cipher)
+  if (filter->cipher)
     g_free (filter->cipher);
-  if(filter->pass)
+  if (filter->pass)
     g_free (filter->pass);
-  if(filter->key)
+  if (filter->key)
     g_free (filter->key);
-  if(filter->iv)
+  if (filter->iv)
     g_free (filter->iv);
-  GST_LOG ("Finalization successfull");
+  GST_INFO_OBJECT (filter, "Finalization successfull");
 }
+
 /* entry point to initialize the plug-in
  * initialize the plug-in itself
  * register the element factories and other features
@@ -582,18 +580,9 @@ crypto_init (GstPlugin * crypto)
       GST_TYPE_CRYPTO);
 }
 
-/* gstreamer looks for this structure to register cryptos
- *
- * FIXME:exchange the string 'Template crypto' with you crypto description
- */
-GST_PLUGIN_DEFINE (
-    GST_VERSION_MAJOR,
+/* gstreamer looks for this structure to register crypto element */
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     crypto,
-    "Template crypto",
-    crypto_init,
-    VERSION,
-    "LGPL",
-    "GStreamer",
-    "http://gstreamer.net/"
-)
+    "crypto encrypt/decrypt element",
+    crypto_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/")

@@ -40,7 +40,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1335, USA.
  */
- 
+
 #ifndef __GST_CRYPTO_H__
 #define __GST_CRYPTO_H__
 
@@ -52,7 +52,6 @@
 #include <openssl/err.h>
 
 G_BEGIN_DECLS
-
 #define GST_TYPE_CRYPTO \
   (gst_crypto_get_type())
 #define GST_CRYPTO(obj) \
@@ -63,11 +62,11 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_CRYPTO))
 #define GST_IS_CRYPTO_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_CRYPTO))
-
-typedef struct _GstCrypto      GstCrypto;
+typedef struct _GstCrypto GstCrypto;
 typedef struct _GstCryptoClass GstCryptoClass;
 
-struct _GstCrypto {
+struct _GstCrypto
+{
   GstBaseTransform element;
 
   GstPad *sinkpad, *srcpad;
@@ -91,12 +90,12 @@ struct _GstCrypto {
   gint ciphertext_len;
 };
 
-struct _GstCryptoClass {
+struct _GstCryptoClass
+{
   GstBaseTransformClass parent_class;
 };
 
 GType gst_crypto_get_type (void);
 
 G_END_DECLS
-
 #endif /* __GST_CRYPTO_H__ */
