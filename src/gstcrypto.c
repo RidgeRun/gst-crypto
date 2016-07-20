@@ -135,6 +135,8 @@ static gboolean gst_crypto_pass2keyiv (GstCrypto * filter);
 /* general helper functions */
 static gboolean gst_crypto_hexstring2number (GstCrypto * filter,
     const gchar * in, gchar * out);
+static void remove_padding (guchar * srcplaintext,
+    gint data_buff_offset, guint * src_bytes_read);
 
 /* GObject vmethod implementations */
 
@@ -483,8 +485,10 @@ gst_crypto_run (GstCrypto * filter)
 
     /* CBC means the last block is the new iv */
     if (len == filter->ciphertext_len - 16) {
+      guint bytes_read = 16;
+      remove_padding(filter->plaintext, filter->plaintext_len, &bytes_read);
       memcpy (filter->iv, filter->ciphertext + len, 16);
-      filter->plaintext_len += 16;
+      filter->plaintext_len += bytes_read;
       goto crypto_run_out;
     }
 
@@ -493,6 +497,7 @@ gst_crypto_run (GstCrypto * filter)
       ret = GST_FLOW_ERROR;
       goto crypto_run_out;
     }
+    remove_padding(filter->plaintext, filter->plaintext_len, &len);
     filter->plaintext_len += len;
   }
   GST_LOG_OBJECT (filter, "Crypto run successfull");
@@ -500,6 +505,43 @@ gst_crypto_run (GstCrypto * filter)
 crypto_run_out:
   EVP_CIPHER_CTX_free (ctx);
   return ret;
+}
+
+/* Compute how many bytes have the padding section
+ * src_bytes_read: Contain how many bytes are read including padding
+ * section, in this variable is returned how many bytes must be read
+ * without the padding section.
+ */
+static void remove_padding(guchar * srcplaintext, gint data_buff_offset, guint * src_bytes_read)
+{
+  guchar * plaintext;
+  guchar padd_value;
+  guchar padd_num;
+  guchar padd_expected;
+  guint bytes_read;
+
+  bytes_read = *src_bytes_read;
+  /* Verify if there is a padding */
+  /* Read the number of elements of the padding */
+  plaintext = srcplaintext + data_buff_offset + bytes_read - 1;
+  padd_value = *(plaintext);
+  padd_num = 0;
+  padd_expected = padd_value;
+  plaintext--;
+
+ /* Verify if the padding is consistent */
+  do {
+    padd_value = *(plaintext);
+    plaintext--;
+    padd_num++;
+  }
+  while (padd_value == padd_expected);
+
+  if (padd_expected != padd_num) {
+    GST_INFO ("Padding inconsistent, number: x%X expected x%X",padd_num,padd_expected);
+  } else {
+    *src_bytes_read = bytes_read - padd_expected;
+  }
 }
 
 static gboolean
