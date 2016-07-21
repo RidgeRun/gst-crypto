@@ -540,7 +540,12 @@ static void remove_padding(guchar * srcplaintext, gint data_buff_offset, guint *
   if (padd_expected != padd_num) {
     GST_INFO ("Padding inconsistent, number: x%X expected x%X",padd_num,padd_expected);
   } else {
-    *src_bytes_read = bytes_read - padd_expected;
+    GST_INFO ("Padding consistent, number: x%X expected x%X",padd_num,padd_expected);
+    if (1 == padd_expected){
+      GST_INFO ("Padding is 1, ignoring it!");
+    } else {
+      *src_bytes_read = bytes_read - padd_expected;
+    }
   }
 }
 
