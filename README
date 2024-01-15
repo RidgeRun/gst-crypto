@@ -6,3 +6,23 @@ can be supported by gst-crypto. Currently, only aes-128-cbc cipher is supported.
 
 More information on how to use it on:
  http://developer.ridgerun.com/wiki/index.php?title=RidgeRun_gst-crypto_GStreamer_Plugin
+
+
+# build and test
+
+On MacOS:
+  Setup Dev ENV:
+      brew install automake
+      brew install gstreamer
+      brew install gstreamer
+      brew install --cask gstreamer-development
+      brew install gst-libav gst-plugins-ugly gst-plugins-base gst-plugins-bad gst-plugins-good
+  Build:
+      ./autogen.sh
+      ./configure 
+      cd src && make
+  Test gst-crypto:
+    Raw file enc and dec:
+      GST_PLUGIN_PATH=./.libs/ gst-launch-1.0 --gst-plugin-path=/usr/local/lib/gstreamer-1.0 filesrc location=plain.txt ! crypto mode=enc ! filesink location=plain.txt.enc1
+      GST_PLUGIN_PATH=./.libs/ gst-launch-1.0 --gst-plugin-path=/usr/local/lib/gstreamer-1.0 filesrc location=plain.txt.enc1 ! crypto mode=dec ! filesink location=output.dec1
+    Ref: https://developer.ridgerun.com/wiki/index.php?title=RidgeRun_gst-crypto_GStreamer_Plugin
