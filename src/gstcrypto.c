@@ -69,6 +69,15 @@
 
 #include "gstcrypto.h"
 
+//#define AES
+
+#ifdef AES
+#define CIPHER "aes-128-cbc"
+#else
+#include <openssl/provider.h>
+#define CIPHER "qispace_qeep"
+#endif
+
 GST_DEBUG_CATEGORY_STATIC (gst_crypto_debug);
 #define GST_CAT_DEFAULT gst_crypto_debug
 
@@ -159,8 +168,12 @@ gst_crypto_class_init (GstCryptoClass * klass)
           G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
   g_object_class_install_property (gobject_class, PROP_CIPHER,
       g_param_spec_string ("cipher", "Cipher",
+#ifdef AES
           "cypher string in openssl format, currently aes-128-cbc only",
-          "aes-128-cbc", G_PARAM_READWRITE));
+#else
+          "cypher string in openssl format, currently qispace_qeep only",
+#endif
+          CIPHER, G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_PASS,
       g_param_spec_string ("pass", "Pass", "crypto password", DEFAULT_PASS,
           G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
@@ -214,7 +227,7 @@ gst_crypto_init (GstCrypto * filter)
   g_stpcpy (filter->mode, "enc");
   filter->is_encrypting = TRUE;
   filter->cipher = g_malloc (64);
-  g_stpcpy (filter->cipher, "aes-128-cbc");
+  g_stpcpy (filter->cipher, CIPHER);
   filter->pass = g_malloc (64);
   g_stpcpy (filter->pass, DEFAULT_PASS);
   filter->key = g_malloc (64);
@@ -240,7 +253,16 @@ gst_crypto_set_property (GObject * object, guint prop_id,
       break;
     case PROP_CIPHER:
       filter->cipher = g_value_dup_string (value);
+#ifdef AES
       filter->evp_cipher = EVP_get_cipherbyname (filter->cipher);
+#else
+      OSSL_LIB_CTX *libctx = NULL;
+      OSSL_PROVIDER *prov = NULL;
+      prov = OSSL_PROVIDER_load(libctx, CIPHER);
+      if (prov != NULL) {
+        filter->evp_cipher = EVP_CIPHER_fetch(libctx, CIPHER, NULL);
+      }
+#endif
       break;
     case PROP_PASS:
       filter->pass = g_value_dup_string (value);
@@ -412,7 +434,22 @@ gst_crypto_openssl_init (GstCrypto * filter)
   ERR_load_crypto_strings ();
   OpenSSL_add_all_algorithms ();
   OPENSSL_config (NULL);
+
+#ifdef AES
   filter->evp_cipher = EVP_get_cipherbyname (filter->cipher);
+#else
+  OSSL_LIB_CTX *libctx = NULL;
+  OSSL_PROVIDER *prov = NULL;
+  prov = OSSL_PROVIDER_load(libctx, CIPHER);
+  if (prov == NULL) {
+    return FALSE;
+  } else {
+    filter->evp_cipher = EVP_CIPHER_fetch(libctx, CIPHER, NULL);
+    if (filter->evp_cipher == NULL) {
+      return FALSE;
+    }
+  }
+#endif
   if (!filter->evp_cipher) {
     GST_ERROR_OBJECT (filter, "Could not get cipher by name from openssl");
     return FALSE;
@@ -549,16 +586,38 @@ static void remove_padding(guchar * srcplaintext, gint data_buff_offset, guint *
   }
 }
 
+#ifndef AES
+static gboolean str_to_hex(char *charbuf, int bufsize, uint8_t *hex)
+{
+  int i;
+  char hhalf, lhalf;
+  for (i=0; i<bufsize; i=i+1)
+  {
+    hhalf = ((charbuf[i*2]-'0')>9) ? (charbuf[i*2]>='a' ? ((charbuf[i*2]-'a')+10) : ((charbuf[i*2]-'A')+10)) : (charbuf[i*2]-'0');
+    lhalf = ((charbuf[i*2+1]-'0')>9) ? (charbuf[i*2+1]>='a' ? ((charbuf[i*2+1]-'a')+10) : ((charbuf[i*2+1]-'A')+10)) : (charbuf[i*2+1]-'0');
+    hex[i] = hhalf * 16 + lhalf;
+  }
+  return TRUE;
+}
+#define IV_LENGTH   16
+#endif
+
 static gboolean
 gst_crypto_pass2keyiv (GstCrypto * filter)
 {
   GST_LOG_OBJECT (filter, "Coverting pass to key/iv");
+#ifdef AES
   if (!EVP_BytesToKey (filter->evp_cipher, filter->evp_md, filter->salt,
           (guchar *) filter->pass, strlen (filter->pass), 1,
           (guchar *) filter->key, (guchar *) filter->iv)) {
     GST_ERROR_OBJECT (filter, "Could not execute openssl key/iv conversion");
     return FALSE;
   }
+#else
+  str_to_hex(filter->pass, IV_LENGTH, filter->iv);
+  str_to_hex(filter->pass+IV_LENGTH*2, strlen(filter->pass)/2 - IV_LENGTH, filter->key);
+#endif
+
   GST_LOG_OBJECT (filter, "Key/iv conversion successfull");
   return TRUE;
 }

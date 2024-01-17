@@ -12,17 +12,16 @@ More information on how to use it on:
 
 On MacOS:
   Setup Dev ENV:
-      brew install automake
-      brew install gstreamer
+      brew install automake autoconf libtool
       brew install gstreamer
       brew install --cask gstreamer-development
       brew install gst-libav gst-plugins-ugly gst-plugins-base gst-plugins-bad gst-plugins-good
   Build:
-      ./autogen.sh
+      ./autogen.sh    If it is failed with error "no config.status", run the next step ./confingure and then do this again
       ./configure 
       cd src && make
   Test gst-crypto:
     Raw file enc and dec:
-      GST_PLUGIN_PATH=./.libs/ gst-launch-1.0 --gst-plugin-path=/usr/local/lib/gstreamer-1.0 filesrc location=plain.txt ! crypto mode=enc ! filesink location=plain.txt.enc1
-      GST_PLUGIN_PATH=./.libs/ gst-launch-1.0 --gst-plugin-path=/usr/local/lib/gstreamer-1.0 filesrc location=plain.txt.enc1 ! crypto mode=dec ! filesink location=output.dec1
+      GST_PLUGIN_PATH=./.libs/ gst-launch-1.0 --gst-plugin-path=/usr/local/lib/gstreamer-1.0 filesrc location=plain.txt ! crypto mode=enc pass=9ebb50f49aeb2f1ec0c6e9fa565e1c3c01e8e86830efc1c6559d315fd635bd7e59eaa5a0a95100c5d0a2431972ee7f8c0869d47df216794ecf49374b40823071e7836c8f2622 ! filesink location=plain.txt.enc1
+      GST_PLUGIN_PATH=./.libs/ gst-launch-1.0 --gst-plugin-path=/usr/local/lib/gstreamer-1.0 filesrc location=plain.txt.enc1 ! crypto mode=dec pass=9ebb50f49aeb2f1ec0c6e9fa565e1c3c01e8e86830efc1c6559d315fd635bd7e59eaa5a0a95100c5d0a2431972ee7f8c0869d47df216794ecf49374b40823071e7836c8f2622 ! filesink location=output.dec1
     Ref: https://developer.ridgerun.com/wiki/index.php?title=RidgeRun_gst-crypto_GStreamer_Plugin
