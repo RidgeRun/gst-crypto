@@ -71,19 +71,27 @@
 
 //#define AES
 
-#ifdef AES
-#define CIPHER "aes-128-cbc"
-#else
-#include <openssl/provider.h>
-#define CIPHER "qispace_qeep"
-#endif
-
 GST_DEBUG_CATEGORY_STATIC (gst_crypto_debug);
 #define GST_CAT_DEFAULT gst_crypto_debug
+
+#ifdef AES
+#define CIPHER "aes-128-cbc"
+#define MAX_KEY_LENGTH  64
+#define MAX_PASS_LENGTH  64
 
 #define DEFAULT_PASS "RidgeRun"
 #define DEFAULT_KEY "1f9423681beb9a79215820f6bda73d0f"
 #define DEFAULT_IV "e9aa8e834d8d70b7e0d254ff670dd718"
+#else
+#include <openssl/provider.h>
+#define CIPHER "qispace_qeep"
+#define MAX_KEY_LENGTH  1024
+#define MAX_PASS_LENGTH  (MAX_KEY_LENGTH*2+16)
+
+#define DEFAULT_PASS "9ebb50f49aeb2f1ec0c6e9fa565e1c3c01e8e86830efc1c6559d315fd635bd7e59eaa5a0a95100c5d0a2431972ee7f8c0869d47df216794ecf49374b40823071e7836c8f2622"
+#define DEFAULT_KEY "01e8e86830efc1c6559d315fd635bd7e59eaa5a0a95100c5d0a2431972ee7f8c0869d47df216794ecf49374b40823071e7836c8f2622"
+#define DEFAULT_IV "9ebb50f49aeb2f1ec0c6e9fa565e1c3c"
+#endif
 /* Filter signals and args */
 enum
 {
@@ -228,9 +236,9 @@ gst_crypto_init (GstCrypto * filter)
   filter->is_encrypting = TRUE;
   filter->cipher = g_malloc (64);
   g_stpcpy (filter->cipher, CIPHER);
-  filter->pass = g_malloc (64);
+  filter->pass = g_malloc (MAX_PASS_LENGTH);
   g_stpcpy (filter->pass, DEFAULT_PASS);
-  filter->key = g_malloc (64);
+  filter->key = g_malloc (MAX_KEY_LENGTH);
   filter->iv = g_malloc (64);
   filter->use_pass = TRUE;
   GST_INFO_OBJECT (filter, "Plugin initialization successfull");
