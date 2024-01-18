@@ -25,3 +25,16 @@ On MacOS:
       GST_PLUGIN_PATH=./.libs/ gst-launch-1.0 --gst-plugin-path=/usr/local/lib/gstreamer-1.0 filesrc location=plain.txt ! crypto mode=enc pass=9ebb50f49aeb2f1ec0c6e9fa565e1c3c01e8e86830efc1c6559d315fd635bd7e59eaa5a0a95100c5d0a2431972ee7f8c0869d47df216794ecf49374b40823071e7836c8f2622 ! filesink location=plain.txt.enc1
       GST_PLUGIN_PATH=./.libs/ gst-launch-1.0 --gst-plugin-path=/usr/local/lib/gstreamer-1.0 filesrc location=plain.txt.enc1 ! crypto mode=dec pass=9ebb50f49aeb2f1ec0c6e9fa565e1c3c01e8e86830efc1c6559d315fd635bd7e59eaa5a0a95100c5d0a2431972ee7f8c0869d47df216794ecf49374b40823071e7836c8f2622 ! filesink location=output.dec1
     Ref: https://developer.ridgerun.com/wiki/index.php?title=RidgeRun_gst-crypto_GStreamer_Plugin
+
+On MacOS:
+  Setup Dev ENV:
+    apt-get install automake autoconf libtool
+    apt-get install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio
+  Build:
+      ./autogen.sh
+      sudo make install
+  Test gst-crypto:
+    Raw file enc and dec:
+      gst-launch-1.0 --gst-plugin-path=/usr/local/lib/gstreamer-1.0 filesrc location=plain.txt ! crypto mode=enc pass=9ebb50f49aeb2f1ec0c6e9fa565e1c3c01e8e86830efc1c6559d315fd635bd7e59eaa5a0a95100c5d0a2431972ee7f8c0869d47df216794ecf49374b40823071e7836c8f2622 ! filesink location=plain.txt.enc1
+      gst-launch-1.0 --gst-plugin-path=/usr/local/lib/gstreamer-1.0 filesrc location=plain.txt.enc1 ! crypto mode=dec pass=9ebb50f49aeb2f1ec0c6e9fa565e1c3c01e8e86830efc1c6559d315fd635bd7e59eaa5a0a95100c5d0a2431972ee7f8c0869d47df216794ecf49374b40823071e7836c8f2622 ! filesink location=output.dec1
+  
