@@ -91,6 +91,9 @@ GST_DEBUG_CATEGORY_STATIC (gst_crypto_debug);
 #define DEFAULT_PASS "9ebb50f49aeb2f1ec0c6e9fa565e1c3c01e8e86830efc1c6559d315fd635bd7e59eaa5a0a95100c5d0a2431972ee7f8c0869d47df216794ecf49374b40823071e7836c8f2622"
 #define DEFAULT_KEY "01e8e86830efc1c6559d315fd635bd7e59eaa5a0a95100c5d0a2431972ee7f8c0869d47df216794ecf49374b40823071e7836c8f2622"
 #define DEFAULT_IV "9ebb50f49aeb2f1ec0c6e9fa565e1c3c"
+
+static   OSSL_PROVIDER *prov = NULL;
+static   OSSL_LIB_CTX *libctx = NULL;
 #endif
 /* Filter signals and args */
 enum
@@ -264,10 +267,10 @@ gst_crypto_set_property (GObject * object, guint prop_id,
 #ifdef AES
       filter->evp_cipher = EVP_get_cipherbyname (filter->cipher);
 #else
-      OSSL_LIB_CTX *libctx = NULL;
-      OSSL_PROVIDER *prov = NULL;
-      prov = OSSL_PROVIDER_load(libctx, CIPHER);
-      if (prov != NULL) {
+      if (prov == NULL) {
+        prov = OSSL_PROVIDER_load(libctx, CIPHER);
+      }
+      if ( (prov != NULL) && (libctx != NULL) ) {
         filter->evp_cipher = EVP_CIPHER_fetch(libctx, CIPHER, NULL);
       }
 #endif
@@ -408,7 +411,6 @@ gst_crypto_start (GstBaseTransform * base)
 {
   GstCrypto *filter = GST_CRYPTO (base);
   GST_INFO_OBJECT (filter, "Starting");
-
   if (!gst_crypto_openssl_init (filter)) {
     GST_ERROR_OBJECT (filter, "Openssl initialization failed");
     return FALSE;
@@ -428,6 +430,12 @@ static gboolean
 gst_crypto_stop (GstBaseTransform * base)
 {
   GstCrypto *filter = GST_CRYPTO (base);
+#ifndef AES  
+  if (prov != NULL) {
+    OSSL_PROVIDER_unload(prov);
+    libctx = NULL;  
+  }
+#endif
   GST_INFO_OBJECT (filter, "Stopping");
   GST_LOG_OBJECT (filter, "Stop successfull");
   return TRUE;
@@ -447,7 +455,6 @@ gst_crypto_openssl_init (GstCrypto * filter)
   filter->evp_cipher = EVP_get_cipherbyname (filter->cipher);
 #else
   OSSL_LIB_CTX *libctx = NULL;
-  OSSL_PROVIDER *prov = NULL;
   prov = OSSL_PROVIDER_load(libctx, CIPHER);
   if (prov == NULL) {
     return FALSE;
@@ -482,7 +489,10 @@ gst_crypto_run (GstCrypto * filter)
   GST_LOG_OBJECT (filter, "Crypto running");
   if (!(ctx = EVP_CIPHER_CTX_new ()))
     return GST_FLOW_ERROR;
-
+#ifndef AES
+    EVP_CipherInit(ctx, filter->evp_cipher, NULL, NULL, 1);
+    EVP_CIPHER_CTX_set_key_length(ctx, 54);
+#endif
   if (filter->is_encrypting) {
     GST_LOG_OBJECT (filter, "Encrypting");
     if (1 != EVP_EncryptInit_ex (ctx, filter->evp_cipher, NULL, filter->key,
